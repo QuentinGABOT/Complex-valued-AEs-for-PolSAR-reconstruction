@@ -1,0 +1,26 @@
+site_name: CVNN
+site_description: Documentation pour le package CVNN
+nav:
+  - Accueil: index.md
+  - Installation: installation.md
+  - Tutoriel rapide: quickstart.md
+  - API:
+      - Data: api/data.md
+      - Model: api/model.md
+      - Train: api/train.md
+      - Evaluate: api/evaluate.md
+      - Utils: api/utils.md
+      - Visualize: api/visualize.md
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.sections
+plugins:
+  - search
+  - mkdocstrings

@@ -1,0 +1,87 @@
+# Task-specific configuration for Reconstruction task
+task: reconstruction
+
+# Data configuration specific to reconstruction
+data:
+  batch_size: 32
+  crop:
+    end_col: 3200
+    end_row: 7500
+    start_col: 1000
+    start_row: 3000
+  # crop:
+  #   end_col: 9000
+  #   end_row: 5000
+  #   start_col: 0
+  #   start_row: 0
+  dataset:
+    # name: ALOSDataset
+    # trainpath: ../datasets/SAN_FRANCISCO_ALOS2
+    name: Bretigny
+    trainpath: ../datasets/Bretigny
+    # name: Sethi
+    # trainpath: ../datasets/Sethi
+  num_workers: 4
+  patch_size: 64
+  patch_stride: 64
+  test_ratio: 0.1
+  valid_ratio: 0.1
+  # transforms:
+  #   - name: randomhorizontalflip
+    # - name: resize
+    #   params:
+    #     size: [32, 32]
+    # - name: normalize
+    #   params:
+    #     mean: [0.5, 0.5, 0.5]
+    #     std: [0.5, 0.5, 0.5]
+                    
+  #real_pipeline_type: complex_dual_real
+
+# Model configuration specific to reconstruction
+model:
+  activation: modReLU
+  channels_width: 64
+  class: AutoEncoder
+  layer_mode: complex
+  num_layers: 2
+  normalization_layer: batch
+  downsampling_layer: Null
+  upsampling_layer: bilinear
+  residual: True
+  #gumbel_softmax: mean
+  dropout: 0.0
+
+  # Projection configuration - choose one of the following:
+  
+  # Option 1: Polynomial projection with custom order
+  projection_layer: polynomial
+  projection:
+    order: 5  # Default is 3, this creates a 5th order polynomial
+  
+  # Option 2: MLP projection with custom architecture
+  # projection_layer: MLP
+  # projection:
+  #   hidden_sizes: [8, 16, 8]  # Default is [8, 16]
+  
+  # Option 3: Amplitude projection (no additional config needed)
+  #projection_layer: amplitude
+
+
+  gumbel_tau:
+    start_value: 0.001
+    gamma: 0.1
+    start_decay_epoch: 5
+    min_value: 0.00001
+
+# Override wandb project name for reconstruction
+# Logging configuration
+logging:
+  logdir: ./logs
+  wandb:
+    entity: equivariant_cvnn
+    project: sf_alos2
+    name: reconstruction
+# Loss configuration - using new generic naming
+loss:
+  name: MSE # Auto-selects ComplexMSELoss or MSELoss based on layer_mode
