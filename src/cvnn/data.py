@@ -263,7 +263,7 @@ def _create_bretigny_dataset(
         transform=transform,
         patch_size=(dataset_config["patch_size"], dataset_config["patch_size"]),
         patch_stride=(dataset_config["patch_stride"], dataset_config["patch_stride"]),
-        keep_labels= True if cfg["task"] == "segmentation" else False,  # Keep labels only for segmentation tasks
+        keep_labels=False
     )
 
 

@@ -182,11 +182,11 @@ class Up(nn.Module):
 class LatentBottleneck(nn.Module):
     """
     Latent bottleneck layer for autoencoder architectures.
-    
+
     Compresses spatial feature maps to a lower-dimensional latent space
     representation and reconstructs back to original dimensions. Supports
     both real and complex-valued data.
-    
+
     Args:
         in_channels: Number of input channels
         latent_dim: Dimensionality of latent space
@@ -204,15 +204,6 @@ class LatentBottleneck(nn.Module):
         activation: nn.Module,
         layer_mode: str = "complex",
         normalization: Optional[str] = None,
-        dropout: Optional[float] = 0.0,
-        downsampling: Optional[str] = None,
-        downsampling_factor: int = 2,
-        projection: Optional[str] = None,
-        projection_config: Optional[dict] = None,
-        gumbel_softmax: Optional[str] = None,
-        upsampling: Optional[str] = None,
-        upsampling_factor: int = 2,
-        residual: bool = False,
     ) -> None:
         """Initialize latent bottleneck layer."""
         super().__init__()
@@ -220,144 +211,81 @@ class LatentBottleneck(nn.Module):
         self.in_channels = in_channels
         self.latent_dim = latent_dim
         self.normalization = normalization
+        self.activation = activation
 
-        # Global average pooling to reduce spatial dimensions
-        # self.avg_pool = c_nn.AvgPool2d(
-        #     kernel_size=2,
-        #     stride=2,
-        #     padding=0,
-        #     ceil_mode=True,
-        # )
-        # lpd_conv = DoubleConv(in_ch=in_channels,
-        #                 out_ch=in_channels*2,
-        #                 conv_mode=layer_mode,
-        #                 activation=activation,
-        #                 normalization=None,
-        #                 residual=residual)
+        self.pool = c_nn.AdaptiveAvgPool2d(1)
+        flat_in = in_channels * input_size * input_size
 
-        # self.down = get_downsampling(downsampling=downsampling, 
-        #                              projection=projection, 
-        #                              projection_config=projection_config,
-        #                              factor=downsampling_factor, 
-        #                              layer_mode=layer_mode, 
-        #                              conv=lpd_conv, 
-        #                              in_channels=in_channels, 
-        #                              out_channels=in_channels*2,
-        #                              gumbel_softmax_type=gumbel_softmax)
-
-        # self.encoder = DoubleLinear(
-        #     in_ch=in_channels,
-        #     out_ch=latent_dim//2,
-        #     mid_ch=latent_dim,
-        #     linear_mode=layer_mode,
-        #     activation=activation,
-        #     normalization=None,
-        # )
-        # self.decoder = DoubleLinear(
-        #     in_ch=latent_dim//2,
-        #     out_ch=in_channels,
-        #     mid_ch=latent_dim,
-        #     linear_mode=layer_mode,
-        #     activation=None,
-        #     normalization=None,
-        # )
-        self.encoder = SingleLinear(
-            in_ch=in_channels*input_size*input_size,
-            out_ch=in_channels*input_size*input_size,
-            linear_mode=layer_mode,
-            activation=activation,
-            normalization=normalization,
-        )
-        self.decoder = SingleLinear(
-            in_ch=in_channels*input_size*input_size,
-            out_ch=in_channels*input_size*input_size,
+        # Initial fc_1 expects flattened pooled features of size `in_channels` -> latent_dim
+        self.fc_1 = SingleLinear(
+            in_ch=flat_in,
+            out_ch=latent_dim,
             linear_mode=layer_mode,
             activation=None,
-            normalization=normalization,
+            normalization=None,
         )
 
-        # Unflatten to restore spatial dimensions
+        # Ensure linear layer mode matches the bottleneck's layer mode to avoid dtype mismatches
+        self.fc_2 = SingleLinear(
+            in_ch=latent_dim,
+            out_ch=flat_in,
+            linear_mode=layer_mode,
+            activation=None,
+            normalization=None,
+        )
         self.unflatten = nn.Unflatten(
             dim=1, unflattened_size=(in_channels, input_size, input_size)
         )
-        # self.unflatten = nn.Unflatten(
-        #     dim=1, unflattened_size=(in_channels, input_size, input_size)
-        # )
+        self.unpool = c_nn.Upsample(size=(input_size, input_size), mode='nearest')
 
-        # self.upsample = get_upsampling(
-        #     upsampling="bilinear",
-        #     layer_mode=layer_mode,
-        #     factor=input_size,
-        #     in_channels=in_channels,
-        #     out_channels=in_channels,
-        # )
-        # self.up = get_upsampling(
-        #     upsampling, 
-        #     layer_mode=layer_mode, 
-        #     factor=upsampling_factor, 
-        #     in_channels=in_channels, 
-        #     out_channels=in_channels*2,
-        #     gumbel_softmax_type=gumbel_softmax
-        # )
 
-        #self.dropout = get_dropout(0.25, layer_mode, use_2d=False)
         self.dropout = None
 
-    def encode(self, x: Tensor) -> Tensor:
+    def to_latent(self, x: Tensor) -> Tensor:
         """
         Encode input to latent space.
-        
+
         Args:
             x: Input tensor of shape (B, C, H, W)
-            
+
         Returns:
             Latent representation of shape (B, latent_dim)
         """
-        # Flatten input
-        # x, prob = self.down(x, ret_prob=True)
-        encoded = torch.flatten(x, start_dim=1)
-        # Apply encoder
-        # latent = self.encoder(encoded)
-        if self.dropout is not None:
-            # Apply dropout to latent space
-            encoded = self.dropout(encoded)
+        #x = self.pool(x)
+        x = torch.flatten(x, 1)
+        x = self.fc_1(x)
+        return x
 
-        return encoded
-
-    def decode(self, latent: Tensor) -> Tensor:
+    def to_input(self, x: Tensor) -> Tensor:  #
         """
         Decode latent space back to input shape.
-        
+
         Args:
-            latent: Latent tensor of shape (B, latent_dim)
+            x: Latent tensor of shape (B, latent_dim)
             prob: Probability tensor from downsampling
-            
+
         Returns:
             Reconstructed tensor of shape (B, C, H, W)
         """
-        # Apply decoder
-        # decoded = self.decoder(latent)
-        # Reshape back to spatial dimensions
-        output = self.unflatten(latent)
-
-        # output = self.up(output, prob=prob)
-        return output
-
+        x = self.fc_2(x)
+        x = self.unflatten(x)
+        #x = self.unpool(x)
+        return x
 
     def forward(self, x: Tensor) -> Tensor:
         """
         Forward pass through the bottleneck.
-        
+
         Args:
             x: Input tensor of shape (B, C, H, W)
-            
+
         Returns:
             Reconstructed tensor of shape (B, C, H, W)
         """
-        latent = self.encode(x)
-        output = self.decode(latent)
-        return output
-        #return x
+        x = self.to_latent(x)
+        x = self.to_input(x)
+        return x
+
 
 
 def concat(x1, x2):

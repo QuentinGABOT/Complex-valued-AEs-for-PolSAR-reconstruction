@@ -172,10 +172,14 @@ def get_activation(activation_name: str, layer_mode: str) -> nn.Module:
             activation_cls = getattr(c_nn, activation_name)
             return activation_cls()
         except AttributeError:
-            # Check if we can map to a complex activation
-            if activation_name in COMPLEX_TO_REAL_ACTIVATIONS:
-                # This is a standard activation, but user wants complex mode
-                warnings.warn(
+            try:
+                activation_cls = getattr(nn, activation_name)
+                return activation_cls()
+            except AttributeError:
+                # Check if we can map to a complex activation
+                if activation_name in COMPLEX_TO_REAL_ACTIVATIONS:
+                    # This is a standard activation, but user wants complex mode
+                    warnings.warn(
                     f"Activation '{activation_name}' may not be available in torchcvnn. "
                     f"For complex mode '{layer_mode}', consider using complex activations like 'modReLU'."
                 )
@@ -796,10 +800,9 @@ def init_weights_mode_aware(module: nn.Module, layer_mode: str) -> None:
         >>> init_weights_mode_aware(layer, "complex")
         >>> # Weights are now initialized for complex-valued operations
     """
-    if (
-        isinstance(module, nn.Linear)
-        or isinstance(module, nn.Conv2d)
+    if (isinstance(module, nn.Conv2d)
         or isinstance(module, nn.ConvTranspose2d)
+        or isinstance(module, nn.Linear)
     ):
 
         if is_real_mode(layer_mode):
@@ -811,7 +814,14 @@ def init_weights_mode_aware(module: nn.Module, layer_mode: str) -> None:
             # Use complex initialization for complex modes
             c_nn.init.complex_kaiming_normal_(module.weight, nonlinearity="relu")
             if module.bias is not None:
-                module.bias.data.fill_(0.01)
+                module.bias.data.zero_()
+
+    elif module.__class__.__name__.lower() == "modrelu":
+        # bias value impact the model significantly, 0.25 seems to be a good starting point (empirically)
+        if hasattr(module, "b") and module.b is not None:
+            with torch.no_grad():
+                module.b.fill_(0.25)
+
 
 
 def validate_layer_mode(layer_mode: str) -> None:

@@ -9,8 +9,6 @@ data:
     end_row: 7500
     start_col: 0
     start_row: 0
-    # start_col: 1000
-    # start_row: 3000
   # crop:
   #   end_col: 9000
   #   end_row: 5000
@@ -43,9 +41,10 @@ data:
 model:
   activation: CReLU
   channels_width: 64
-  class: AutoEncoder
+  class: LatentAutoEncoder
   layer_mode: complex
   num_layers: 4
+  latent_dim: 512
   normalization_layer: batch
   downsampling_layer: LPD
   upsampling_layer: LPU

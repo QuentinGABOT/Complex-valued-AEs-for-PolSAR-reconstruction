@@ -8,7 +8,7 @@ import torchcvnn.nn.modules as c_nn
 from torch import Tensor
 
 # Local imports
-from .utils import get_normalization, get_projection
+from .utils import get_activation, get_normalization, get_projection
 
 COMPLEX_DTYPE = torch.complex64
 REAL_DTYPE = torch.float64
@@ -144,10 +144,10 @@ class ConvBlock(nn.Module):
         layers += [
             normalization_layer,
         ]
-        if activation is None:
-            activation = nn.Identity()
+        activation_layer = get_activation(activation, conv_mode)
+
         layers += [
-            activation,
+            activation_layer,
         ]
         self.conv_block = nn.Sequential(*layers)
 

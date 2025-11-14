@@ -12,6 +12,8 @@ import torch
 import wandb
 from scipy.signal import convolve2d
 from matplotlib.colors import BoundaryNorm, ListedColormap
+from matplotlib.collections import LineCollection
+from matplotlib.patches import Rectangle
 from scipy.linalg import eigh
 from skimage import exposure
 from sklearn.metrics import (
@@ -325,36 +327,97 @@ def safe_log(
         # Change of base formula: log_b(x) = ln(x) / ln(b)
         return np.log(x_safe) / np.log(base)
 
-
-def _compute_classes_h_alpha(fullsamples: np.ndarray, son: int = 7) -> np.ndarray:
+def _compute_h_alpha_coords(fullsamples: np.ndarray, son: int = 7, eps: float = 1e-10):
     """
-    Vectorized H–α classification using convolution and batched eigendecomposition.
+    Vectorized Cloude–Pottier H (entropy ∈ [0,1]) and α (deg ∈ [0,90])
+    on sliding son×son window.
     """
     H, W, p = fullsamples.shape
     H_out, W_out = H - (son - 1), W - (son - 1)
 
-    # 1) Build local covariance via convolution
     kernel = np.ones((son, son), dtype=fullsamples.dtype)
     cov = np.empty((H_out, W_out, p, p), dtype=complex)
     for i in range(p):
         for j in range(p):
             prod = fullsamples[..., i] * np.conj(fullsamples[..., j])
-            cov[..., i, j] = convolve2d(prod, kernel, mode='valid') / (son ** 2)
+            cov[..., i, j] = convolve2d(prod, kernel, mode="valid") / (son ** 2)
 
-    # 2) Batched eigendecomposition (last two dims)
     eigvals, eigvecs = np.linalg.eigh(cov)
-    eigvals = np.maximum(eigvals, 1e-10)
+    eigvals = np.maximum(eigvals, eps)
     p_vec = eigvals / eigvals.sum(axis=-1, keepdims=True)
 
-    # 3) Entropy H
-    H_mat = -np.sum(p_vec * np.log(p_vec), axis=-1)
+    # Entropy normalized by log(3)
+    H_mat = -np.sum(p_vec * (np.log(p_vec + eps) / np.log(3)), axis=-1)
     H_mat = np.clip(H_mat, 0, 1)
 
-    # 4) Mean scattering angle α
-    alpha_vec = np.arccos(np.clip(np.abs(eigvecs[..., 0, :]), 0, 1))
-    alpha_mat = np.sum(p_vec * alpha_vec, axis=-1) * (180.0 / np.pi)
+    alpha_i = np.arccos(np.clip(np.abs(eigvecs[..., 0, :]), 0, 1))
+    alpha_mat = np.sum(p_vec * alpha_i, axis=-1) * (180.0 / np.pi)
     alpha_mat = np.clip(alpha_mat, 0, 90)
 
+    return H_mat, alpha_mat
+
+def _draw_halpha_zones(ax, class_info: Dict[int, Dict[str, str]]):
+    """
+    Draw the 9 standard Cloude–Pottier H–α zones as translucent rectangles.
+    Axes: x = Entropy H ∈ [0,1], y = α ∈ [0,90] (degrees).
+    Colors taken from class_info[id]["color"].
+    """
+    # Entropy band edges
+    H_L, H_M, H_H, H_MAX = 0.0, 0.5, 0.9, 1.0
+
+    # Alpha thresholds per band (deg)
+    # Low entropy: 0–0.5
+    th_L = [0.0, 42.5, 47.5, 90.0]     # → classes [9, 8, 7]
+    # Medium entropy: 0.5–0.9
+    th_M = [0.0, 40.0, 50.0, 90.0]     # → classes [6, 5, 4]
+    # High entropy: 0.9–1.0
+    th_H = [0.0, 40.0, 55.0, 90.0]           # → classes [3, 2, 1]
+
+    zones = [
+        # (Hmin, Hmax, αmin, αmax, class_id)
+        # Low entropy band
+        (H_L, H_M, th_L[0], th_L[1], 9),
+        (H_L, H_M, th_L[1], th_L[2], 8),
+        (H_L, H_M, th_L[2], th_L[3], 7),
+        # Medium entropy band
+        (H_M, H_M + (H_H - H_M), th_M[0], th_M[1], 6),
+        (H_M, H_H,                 th_M[1], th_M[2], 5),
+        (H_M, H_H,                 th_M[2], th_M[3], 4),
+        # High entropy band
+        (H_H, H_MAX, th_H[0], th_H[1], 3),
+        (H_H, H_MAX, th_H[1], th_H[2], 2),
+        (H_H, H_MAX, th_H[2], th_H[3], 1),
+    ]
+
+    # Draw rectangles
+    for Hmin, Hmax, amin, amax, cid in zones:
+        color = class_info.get(cid, {}).get("color", "lightgray")
+        rect = Rectangle(
+            (Hmin, amin), Hmax - Hmin, amax - amin,
+            facecolor=color, edgecolor=color, alpha=0.12, linewidth=0.8, zorder=0
+        )
+        ax.add_patch(rect)
+        # annotate class id
+        ax.text(
+            (Hmin + Hmax) / 2.0, (amin + amax) / 2.0, str(cid),
+            ha="center", va="center", fontsize=8, alpha=0.6, zorder=1
+        )    
+        
+    for x in [0.5, 0.9]:
+        ax.axvline(x, ls="--", lw=0.8, alpha=0.4, zorder=2)
+    for y in [40.0, 42.5, 47.5, 50.0, 55.0]:
+        ax.axhline(y, ls="--", lw=0.8, alpha=0.4, zorder=2)
+
+
+    # Gridlines at canonical boundaries
+
+def _compute_classes_h_alpha(fullsamples: np.ndarray, son: int = 7) -> np.ndarray:
+    """
+    Vectorized H–α classification using convolution and batched eigendecomposition.
+    """
+    H, W, _ = fullsamples.shape
+    H_out, W_out = H - (son - 1), W - (son - 1)
+    H_mat, alpha_mat = _compute_h_alpha_coords(fullsamples, son=son)
     # 5) Vectorized classification rules
     classes = np.zeros((H_out, W_out), dtype=int)
 
@@ -501,40 +564,33 @@ def show_reconstructions(
         logger.info(f"Krogager decomposition comparison saved to {krogager_path}")
 
         # 3. Amplitude and angular distance analysis
-        fig_distance, axes_distance = plt.subplots(2, 2, figsize=(12, 10))
+
+        fig_distance, axes_distance = plt.subplots(1, 2, figsize=(12, 5))
+
+        # Increase horizontal space between the two subplots to avoid overlapping y-labels
+        fig_distance.subplots_adjust(wspace=0.35)
 
         # Amplitude difference histogram
         mse_values = (np.abs(img_dataset_trans) - np.abs(img_gen_trans)).flatten()
         q5, q95 = np.percentile(mse_values, [5, 95])
         filtered_data = mse_values[(mse_values > q5) & (mse_values < q95)]
 
-        axes_distance[0, 0].hist(filtered_data, bins=100, alpha=0.75)
-        axes_distance[0, 0].set_title("Amplitude Difference Histogram")
-        axes_distance[0, 0].set_xlabel("Amplitude Difference Value")
-        axes_distance[0, 0].set_ylabel("Frequency")
+        axes_distance[0].hist(filtered_data, bins=100, alpha=0.75)
+        axes_distance[0].set_title("Amplitude Difference Histogram")
+        axes_distance[0].set_xlabel("Amplitude Difference Value")
+        axes_distance[0].set_ylabel("Frequency", labelpad=8)
 
         # Angular distance histogram
-        axes_distance[0, 1].hist(
+        axes_distance[1].hist(
             angular_distance(img_dataset_trans, img_gen_trans).flatten(),
             bins=100,
             alpha=0.75,
+            range=(-1, 1),
         )
-        axes_distance[0, 1].set_title("Angular Distance Histogram")
-        axes_distance[0, 1].set_xlabel("Angular Distance (radians)")
-        axes_distance[0, 1].set_ylabel("Frequency")
-
-        # Angular distance per channel
-        for ch in range(min(num_channels, 2)):  # Show first 2 channels
-            row, col = (1, ch)
-            axes_distance[row, col].imshow(
-                plot_angular_distance(
-                    img_dataset_trans[:, :, ch], img_gen_trans[:, :, ch]
-                ),
-                cmap="hsv",
-                origin="lower",
-            )
-            axes_distance[row, col].set_title(f"Angular Distance - {channels[ch]}")
-            axes_distance[row, col].axis("off")
+        axes_distance[1].set_title("Angular Distance Histogram")
+        axes_distance[1].set_xlabel("Angular Distance (radians)")
+        # move the second plot's y-axis to the right to avoid overlap and add padding
+        axes_distance[1].set_ylabel("Frequency", labelpad=8)
 
         distance_path = f"{logdir}/distance_analysis.png"
         fig_distance.suptitle("Distance Analysis", fontsize=14)
@@ -613,6 +669,112 @@ def show_reconstructions(
             f"H-alpha F1-score (weighted): {h_alpha_metrics['f1_weighted']:.3f}"
         )
 
+        # === H–α misclassification shift plot (only misclassified pixels) ===
+        son = 7
+        H_orig, A_orig = _compute_h_alpha_coords(pauli_img_dataset, son=son)
+        H_gen,  A_gen  = _compute_h_alpha_coords(pauli_img_gen, son=son)
+
+        assert h_alpha_original.shape == h_alpha_gen.shape == H_orig.shape == H_gen.shape
+        miscls_mask = (h_alpha_original != h_alpha_gen)
+        idx_y, idx_x = np.where(miscls_mask)
+
+        max_segments = 5000
+        if idx_x.size > max_segments:
+            sel = np.random.RandomState(0).choice(idx_x.size, size=max_segments, replace=False)
+            idx_x, idx_y = idx_x[sel], idx_y[sel]
+
+        # Now H on x-axis, α on y-axis
+        segs = np.stack([
+            np.stack([H_orig[idx_y, idx_x], A_orig[idx_y, idx_x]], axis=-1),
+            np.stack([H_gen[idx_y, idx_x],  A_gen[idx_y, idx_x]],  axis=-1),
+        ], axis=1)
+
+        fig_shift, ax_shift = plt.subplots(1, 1, figsize=(7, 6))
+        ax_shift.set_title("H–α Misclassification Shifts (orig → recon)")
+        ax_shift.set_xlabel("Entropy H")
+        ax_shift.set_ylabel("Scattering angle α (degrees)")
+        ax_shift.set_xlim(0, 1)
+        ax_shift.set_ylim(0, 90)
+        ax_shift.grid(True, ls="--", alpha=0.4)
+
+        # draw zones behind everything
+        _draw_halpha_zones(ax_shift, h_alpha_class_info)
+
+        def _compute_physical_boundary():
+            """
+            Compute the physically feasible boundary of the Cloude–Pottier H–α plane.
+            Returns (entropy_all, alpha_all_deg).
+            """
+            m2 = np.arange(0, 1.01, 0.01)
+            entropy2 = []
+            alpha2 = []
+            entropy3 = []
+            alpha3 = []
+
+            for i in range(101):
+                T = np.array([[1, 0, 0],
+                            [0, m2[i], 0],
+                            [0, 0, m2[i]]])
+            
+                D, V = np.linalg.eig(T)
+                tr = np.sum(D)
+                P = D / tr + np.finfo(float).eps  # Avoid log(0)
+            
+                alpha2_val = np.sum(P * np.arccos(np.abs(V[0, :])))
+                entropy2_val = -np.sum(P * np.log10(P)) / np.log10(3)
+            
+                alpha2.append(alpha2_val)
+                entropy2.append(entropy2_val)
+            
+                if i < 50:
+                    T2 = np.array([[0, 0, 0],
+                                [0, 1, 0],
+                                [0, 0, 2*m2[i]]])
+                else:
+                    T2 = np.array([[2*m2[i]-1, 0, 0],
+                                [0, 1, 0],
+                                [0, 0, 1]])
+            
+                D2, V2 = np.linalg.eig(T2)
+                tr2 = np.sum(D2)
+                P2 = D2 / tr2 + np.finfo(float).eps
+            
+                alpha3_val = np.sum(P2 * np.arccos(np.abs(V2[0, :])))
+                entropy3_val = -np.sum(P2 * np.log10(P2)) / np.log10(3)
+            
+                alpha3.append(alpha3_val)
+                entropy3.append(entropy3_val)
+            return alpha2, entropy2, alpha3, entropy3
+
+        alpha2, entropy2, alpha3, entropy3 = _compute_physical_boundary()
+        ax_shift.plot(entropy2, np.degrees(alpha2),
+                    'k-', linewidth=2.0,
+                    label='Physical boundary', zorder=4)
+        ax_shift.plot(entropy3, np.degrees(alpha3),
+                    'k-', linewidth=2.0,
+                    zorder=4)
+
+        ax_shift.legend(frameon=True, loc="upper left")
+
+        if segs.shape[0] == 0:
+            ax_shift.text(0.5, 0.5, "No misclassified pixels", ha="center", va="center", transform=ax_shift.transAxes)
+        else:
+            lc = LineCollection(segs, linewidths=0.5, alpha=0.35)
+            ax_shift.add_collection(lc)
+
+            ax_shift.scatter(H_orig[idx_y, idx_x], A_orig[idx_y, idx_x],
+                            s=6, marker='o', c='red',  label='Original', alpha=0.25)
+            ax_shift.scatter(H_gen[idx_y, idx_x],  A_gen[idx_y, idx_x],
+                            s=6, marker='o', c='blue', label='Reconstructed', alpha=0.25)
+            ax_shift.legend(frameon=True, loc="upper left")
+
+        halpha_shift_path = f"{logdir}/h_alpha_misclassification_shifts.png"
+        fig_shift.tight_layout()
+        fig_shift.savefig(halpha_shift_path, bbox_inches="tight", dpi=150)
+        plt.close(fig_shift)
+        figure_paths["h_alpha_shifts"] = halpha_shift_path
+        logger.info(f"H–α misclassification shift plot saved to {halpha_shift_path}")
+        
         # 5. Cameron Classification Visualization
         logger.info("Computing Cameron classification comparison...")
         
@@ -716,6 +878,10 @@ def show_reconstructions(
             ),
             "plots/cameron_classification": wandb.Image(
                 figure_paths["cameron"], caption="Cameron Classification Comparison"
+            ),
+            "plots/h_alpha_misclassification_shifts": wandb.Image(
+                figure_paths["h_alpha_shifts"],
+                caption="H-alpha Misclassification Shifts",
             ),
         }
 

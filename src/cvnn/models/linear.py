@@ -8,7 +8,7 @@ import torchcvnn.nn.modules as c_nn
 from torch import Tensor
 
 # Local imports
-from .utils import get_normalization
+from .utils import get_activation, get_normalization
 
 COMPLEX_DTYPE = torch.complex64
 REAL_DTYPE = torch.float64
@@ -116,10 +116,9 @@ class LinearBlock(nn.Module):
         layers += [
             normalization_layer,
         ]
-        if activation is None:
-            activation = nn.Identity()
+        activation_layer = get_activation(activation, linear_mode)
         layers += [
-            activation,
+            activation_layer,
         ]
         self.linear_block = nn.Sequential(*layers)
 
@@ -137,7 +136,7 @@ class SingleLinear(nn.Module):
         out_ch: int,
         bias: bool = True,
         linear_mode: str = "complex",
-        activation: nn.Module = None,
+        activation: str = None,
         normalization: str = None,
     ) -> None:
         """Initialize single linear layer."""
@@ -166,7 +165,7 @@ class DoubleLinear(nn.Module):
         mid_ch: int = None,
         bias: bool = True,
         linear_mode: str = "complex",
-        activation: nn.Module = None,
+        activation: str = None,
         normalization: str = None,
     ) -> None:
         """Initialize double linear layer."""

@@ -92,7 +92,7 @@ def train_one_epoch(
             outputs = outputs[1]
         loss = loss_fn(outputs, targets)
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.1)
+        #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.1)
         optimizer.step()
         # batch-level warmup stepping
         if warmup_scheduler:

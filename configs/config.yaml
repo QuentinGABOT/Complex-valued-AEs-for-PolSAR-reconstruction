@@ -1,9 +1,10 @@
 # Generic CVNN configuration - shared across all tasks
 
 # Training configuration
-nepochs: 100
+nepochs: 500
 mode: full
 world_size: 4
+# seed: 42
 
 # # Early stopping to prevent overfitting
 # early_stopping:
@@ -15,7 +16,7 @@ world_size: 4
 optim:
   algo: AdamW
   params:
-    lr: 0.0005
+    lr: 0.0001
     weight_decay: 0.001
     betas: [0.9, 0.999]
 

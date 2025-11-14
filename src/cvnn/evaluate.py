@@ -72,187 +72,6 @@ def ssim(img1, img2, window_size=11, size_average=True):
     return _ssim(img1, img2, window, window_size, channel, size_average)
 
 
-def complex_ssim(
-    img1_complex,
-    img2_complex,
-    window_size=11,
-    size_average=True,
-    magnitude_weight=0.7,
-    phase_weight=0.3,
-    magnitude_threshold=1e-6,
-):
-    """
-    Compute SSIM for complex-valued images with improved handling of magnitude and phase.
-
-    Args:
-        img1_complex, img2_complex: Complex-valued tensors
-        window_size: SSIM window size
-        size_average: Whether to average across spatial dimensions
-        magnitude_weight: Weight for magnitude SSIM (default 0.7)
-        phase_weight: Weight for phase SSIM (default 0.3)
-        magnitude_threshold: Threshold below which phase is ignored
-
-    Returns:
-        Complex SSIM score
-    """
-    # Extract magnitude and phase
-    mag1 = torch.abs(img1_complex)
-    mag2 = torch.abs(img2_complex)
-    phase1 = torch.angle(img1_complex)
-    phase2 = torch.angle(img2_complex)
-
-    # Compute magnitude SSIM
-    mag_ssim = ssim(mag1, mag2, window_size, size_average)
-
-    # Handle phase wrapping by computing the wrapped phase difference
-    phase_diff = torch.angle(torch.exp(1j * (phase1 - phase2)))
-
-    # Create magnitude-weighted phase similarity
-    # Only consider phase where both magnitudes are above threshold
-    mag_mask = (mag1 > magnitude_threshold) & (mag2 > magnitude_threshold)
-
-    if mag_mask.any():
-        # Compute phase similarity using cosine of phase difference
-        phase_similarity = torch.cos(phase_diff)
-
-        # Weight phase similarity by the geometric mean of magnitudes
-        magnitude_weights = torch.sqrt(mag1 * mag2)
-        weighted_phase_sim = phase_similarity * magnitude_weights * mag_mask.float()
-
-        # Normalize by the sum of weights
-        total_weights = magnitude_weights * mag_mask.float()
-        if total_weights.sum() > 0:
-            phase_sim_score = weighted_phase_sim.sum() / total_weights.sum()
-        else:
-            phase_sim_score = torch.tensor(1.0, device=img1_complex.device)
-    else:
-        # If no valid magnitude pixels, ignore phase
-        phase_sim_score = torch.tensor(1.0, device=img1_complex.device)
-
-    # Combine magnitude and phase SSIM
-    complex_ssim_score = magnitude_weight * mag_ssim + phase_weight * phase_sim_score
-
-    return complex_ssim_score
-
-
-def complex_ssim_correlation(
-    img1_complex, img2_complex, window_size=11, size_average=True, alpha=0.8, beta=0.2
-):
-    """
-    Alternative complex SSIM using complex correlation approach.
-
-    This method computes SSIM directly on complex values using complex correlation
-    and combines it with magnitude-based SSIM.
-
-    Args:
-        img1_complex, img2_complex: Complex-valued tensors
-        window_size: SSIM window size
-        size_average: Whether to average across spatial dimensions
-        alpha: Weight for magnitude SSIM
-        beta: Weight for complex correlation term
-
-    Returns:
-        Complex SSIM score
-    """
-    # Magnitude SSIM
-    mag1 = torch.abs(img1_complex)
-    mag2 = torch.abs(img2_complex)
-    mag_ssim = ssim(mag1, mag2, window_size, size_average)
-
-    # Complex correlation coefficient
-    # Normalize complex images
-    img1_norm = img1_complex / (torch.abs(img1_complex) + 1e-8)
-    img2_norm = img2_complex / (torch.abs(img2_complex) + 1e-8)
-
-    # Compute complex correlation
-    correlation = torch.mean(torch.real(img1_norm * torch.conj(img2_norm)))
-
-    # Ensure correlation is in [0, 1] range
-    correlation = (correlation + 1) / 2
-
-    # Combine terms
-    complex_ssim_score = alpha * mag_ssim + beta * correlation
-
-    return complex_ssim_score
-
-
-def complex_ssim_advanced(
-    img1_complex, img2_complex, window_size=11, size_average=True
-):
-    """
-    Advanced complex SSIM that considers both local structure and global phase coherence.
-
-    This implementation:
-    1. Uses magnitude SSIM for structural information
-    2. Uses local phase coherence for phase information
-    3. Applies perceptual weighting based on magnitude
-
-    Args:
-        img1_complex, img2_complex: Complex-valued tensors
-        window_size: SSIM window size
-        size_average: Whether to average across spatial dimensions
-
-    Returns:
-        Advanced complex SSIM score
-    """
-    # Extract components
-    mag1 = torch.abs(img1_complex)
-    mag2 = torch.abs(img2_complex)
-
-    # Magnitude SSIM (primary structural measure)
-    mag_ssim = ssim(mag1, mag2, window_size, size_average)
-
-    # Check if image is large enough for sliding window approach
-    B, C, H, W = img1_complex.shape
-    if H < window_size or W < window_size:
-        # For small images, fall back to simpler correlation-based approach
-        return complex_ssim_correlation(
-            img1_complex, img2_complex, min(window_size, min(H, W)), size_average
-        )
-
-    # Local phase coherence using complex correlation in sliding windows
-    pad = window_size // 2
-
-    # Pad images
-    img1_padded = F.pad(img1_complex, (pad, pad, pad, pad), mode="reflect")
-    img2_padded = F.pad(img2_complex, (pad, pad, pad, pad), mode="reflect")
-
-    phase_coherence_map = torch.zeros_like(mag1)
-
-    # Compute local phase coherence
-    for i in range(H):
-        for j in range(W):
-            # Extract local windows
-            window1 = img1_padded[:, :, i : i + window_size, j : j + window_size]
-            window2 = img2_padded[:, :, i : i + window_size, j : j + window_size]
-
-            # Normalize by magnitude to focus on phase
-            norm1 = window1 / (torch.abs(window1) + 1e-8)
-            norm2 = window2 / (torch.abs(window2) + 1e-8)
-
-            # Local phase correlation
-            correlation = torch.mean(torch.real(norm1 * torch.conj(norm2)), dim=(2, 3))
-            phase_coherence_map[:, :, i, j] = (correlation + 1) / 2
-
-    # Weight phase coherence by magnitude importance
-    magnitude_weights = torch.sqrt(mag1 * mag2)
-    weighted_phase_coherence = torch.sum(
-        phase_coherence_map * magnitude_weights
-    ) / torch.sum(magnitude_weights)
-
-    # Perceptual weighting: magnitude is more important than phase
-    # but phase becomes more important at higher magnitudes
-    magnitude_mean = torch.mean(magnitude_weights)
-    phase_weight = torch.clamp(magnitude_mean, 0.1, 0.4)  # Adaptive weighting
-    magnitude_weight = 1 - phase_weight
-
-    # Final complex SSIM
-    complex_ssim_score = (
-        magnitude_weight * mag_ssim + phase_weight * weighted_phase_coherence
-    )
-
-    return complex_ssim_score
-
 
 def evaluate_reconstruction(
     test_loader: torch.utils.data.DataLoader,
@@ -393,8 +212,10 @@ def evaluate_reconstruction_dual_real(
         original = original_complex.cpu()
         reconstructed = complex_output.cpu()
 
-        # Use complex SSIM
-        ssim_score += complex_ssim(original, reconstructed).item()
+        # Use SSIM amplitude
+        original_amplitude = torch.abs(original)
+        reconstructed_amplitude = torch.abs(reconstructed)
+        ssim_score += ssim(original_amplitude, reconstructed_amplitude).item()
 
         # Convert to numpy for MSE and PSNR
         original_np = original.numpy()
@@ -563,8 +384,10 @@ def evaluate_reconstruction_real(
         original = inputs.cpu()
         reconstructed = outputs.cpu()
 
-        # Use real SSIM
-        ssim_score += ssim(original, reconstructed).item()
+        # Use SSIM amplitude
+        original_amplitude = torch.abs(original)
+        reconstructed_amplitude = torch.abs(reconstructed)
+        ssim_score += ssim(original_amplitude, reconstructed_amplitude).item()
 
         # Convert to numpy
         original_np = original.numpy()
@@ -629,8 +452,6 @@ def evaluate_reconstruction_complex_polsar(
     mse = 0.0
     psnr = 0.0
     ssim_score = 0.0
-    ssim_detailed = {} if detailed_ssim else None
-    ssim_methods_used = [] if adaptive_ssim else None
 
     for batch in test_loader:
         inputs = batch[0] if isinstance(batch, (tuple, list)) else batch
@@ -642,32 +463,10 @@ def evaluate_reconstruction_complex_polsar(
         original = inputs.cpu()
         reconstructed = outputs.cpu()
 
-        # Compute complex SSIM using improved implementation
-        if adaptive_ssim:
-            batch_ssim, method_used = adaptive_complex_ssim(original, reconstructed)
-            ssim_score += batch_ssim
-            ssim_methods_used.append(method_used)
-        else:
-            ssim_score += complex_ssim(original, reconstructed).item()
-
-        # Compute detailed SSIM metrics if requested
-        if detailed_ssim:
-            batch_detailed = evaluate_complex_ssim_methods(original, reconstructed)
-            if ssim_detailed is None or len(ssim_detailed) == 0:
-                ssim_detailed = {
-                    key: [] for key in batch_detailed.keys() if key != "analysis"
-                }
-                if "analysis" in batch_detailed:
-                    ssim_detailed["analysis"] = {
-                        k: [] for k in batch_detailed["analysis"].keys()
-                    }
-
-            for key, value in batch_detailed.items():
-                if key != "analysis":
-                    ssim_detailed[key].append(value)
-                else:
-                    for k, v in value.items():
-                        ssim_detailed["analysis"][k].append(v)
+        # Use SSIM amplitude
+        original_amplitude = torch.abs(original)
+        reconstructed_amplitude = torch.abs(reconstructed)
+        ssim_score += ssim(original_amplitude, reconstructed_amplitude).item()
 
         # Convert to numpy for MSE and PSNR calculations
         original = original.numpy()
@@ -690,12 +489,6 @@ def evaluate_reconstruction_complex_polsar(
     avg_psnr = psnr / len(test_loader)
     avg_ssim = ssim_score / len(test_loader)
 
-    if adaptive_ssim and ssim_methods_used:
-        from collections import Counter
-
-        method_counts = Counter(ssim_methods_used)
-        print(f"SSIM methods used: {dict(method_counts)}")
-
     # Prepare metrics for logging and return
     metrics = {
         "mse": avg_mse,
@@ -705,15 +498,6 @@ def evaluate_reconstruction_complex_polsar(
     logger.info(f"Complex PolSAR MSE: {avg_mse:.4f}")
     logger.info(f"Complex PolSAR PSNR: {avg_psnr:.4f}")
     logger.info(f"Complex PolSAR SSIM: {avg_ssim:.4f}")
-
-    # Add detailed SSIM metrics if computed
-    if detailed_ssim and ssim_detailed:
-        for key, values in ssim_detailed.items():
-            if key == "analysis":
-                for k, v in values.items():
-                    metrics[f"ssim_analysis_{k}"] = np.mean(v)
-            else:
-                metrics[f"ssim_{key}"] = np.mean(values)
 
     # Compute circular shift consistency
     shift_consistencies = []

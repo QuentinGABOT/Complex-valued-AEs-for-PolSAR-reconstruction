@@ -396,7 +396,6 @@ class ConvNet(nn.Module):
         bottleneck_layers = []
         decoder_layers = []
 
-        activation_fn = get_activation(activation, layer_mode)
         encoder_layers.append(
             SingleConv(
                 in_ch=num_channels, out_ch=current_channels, conv_mode=layer_mode, projection=None
@@ -410,7 +409,7 @@ class ConvNet(nn.Module):
                     Down(
                         in_channels=current_channels,
                         out_channels=out_channels,
-                        activation=activation_fn,
+                        activation=activation,
                         layer_mode=layer_mode,
                         normalization=normalization_layer,
                         downsampling=downsampling_layer,
@@ -428,7 +427,7 @@ class ConvNet(nn.Module):
                         Down(
                             in_channels=current_channels,
                             out_channels=out_channels,
-                            activation=activation_fn,
+                            activation=activation,
                             layer_mode=layer_mode,
                             normalization=normalization_layer,
                             downsampling=downsampling_layer,
@@ -445,7 +444,7 @@ class ConvNet(nn.Module):
                         Down(
                             in_channels=current_channels,
                             out_channels=out_channels,
-                            activation=activation_fn,
+                            activation=activation,
                             layer_mode=layer_mode,
                             normalization=normalization_layer,
                             downsampling=downsampling_layer,
@@ -477,19 +476,10 @@ class ConvNet(nn.Module):
                 LatentBottleneck(
                     in_channels=current_channels,
                     input_size=bottleneck_input_size,
-                    activation=activation_fn,
+                    activation=activation,
                     latent_dim=latent_dim,
                     layer_mode=layer_mode,
                     normalization=normalization_layer,
-                    downsampling=downsampling_layer,
-                    projection=projection_layer,
-                    projection_config=projection_config,
-                    gumbel_softmax=gumbel_softmax,
-                    upsampling=upsampling_layer,
-                    residual=residual,
-                    dropout=dropout,
-                    upsampling_factor=UPSAMPLING_FACTOR,
-                    downsampling_factor=DOWNSAMPLING_FACTOR,
                 )
             )
 
@@ -503,7 +493,7 @@ class ConvNet(nn.Module):
                     Up(
                         in_channels=current_channels,
                         out_channels=out_channels,
-                        activation=activation_fn,
+                        activation=activation,
                         layer_mode=layer_mode,
                         normalization=normalization_layer,
                         upsampling=upsampling_layer,

@@ -7,25 +7,23 @@ data:
   crop:
     end_col: 3200
     end_row: 7500
-    start_col: 0
-    start_row: 0
-    # start_col: 1000
-    # start_row: 3000
+    start_col: 1000
+    start_row: 3000
   # crop:
   #   end_col: 9000
   #   end_row: 5000
   #   start_col: 0
   #   start_row: 0
   dataset:
-    name: ALOSDataset
-    trainpath: ../datasets/SAN_FRANCISCO_ALOS2
-    # name: Bretigny
-    # trainpath: ../datasets/Bretigny
+    # name: ALOSDataset
+    # trainpath: ../datasets/SAN_FRANCISCO_ALOS2
+    name: Bretigny
+    trainpath: ../datasets/Bretigny
     # name: Sethi
     # trainpath: ../datasets/Sethi
   num_workers: 4
-  patch_size: 16
-  patch_stride: 16
+  patch_size: 64
+  patch_stride: 64
   test_ratio: 0.1
   valid_ratio: 0.1
   # transforms:
@@ -38,17 +36,18 @@ data:
     #     mean: [0.5, 0.5, 0.5]
     #     std: [0.5, 0.5, 0.5]
                     
+  real_pipeline_type: complex_dual_real
 
 # Model configuration specific to reconstruction
 model:
-  activation: CReLU
+  activation: ReLU
   channels_width: 64
   class: AutoEncoder
-  layer_mode: complex
+  layer_mode: real
   num_layers: 4
   normalization_layer: batch
-  downsampling_layer: LPD
-  upsampling_layer: LPU
+  downsampling_layer: Null
+  upsampling_layer: nearest
   residual: True
   #gumbel_softmax: mean
   dropout: 0.0
