@@ -90,7 +90,7 @@ Metrics evaluated on the test set. Best results are in bold.
 The preservation of polarimetric properties is evident in the physical decompositions. Below is an example of the Cameron decomposition reconstructed by our models:
 
 ![Usage](figures/alos2_halpha.png)
-*Figure 1: Reconstruction results obtained from CVNN on the San Francisco Polarimetric SAR ALOS-2 dataset. Up: Amplitude images of the original (left), reconstructed with a CVNN (middle), and reconstructed with an RVNN (right) with the $H-\alpha$ classification. Down: Confusion matrix of the original (rows) and reconstructed (columns) $H-\alpha$ classes with a CVNN (left), and with an RVNN (right).
+*Figure 1: Reconstruction results obtained from CVNN on the San Francisco Polarimetric SAR ALOS-2 dataset*. Up: Amplitude images of the original (left), reconstructed with a CVNN (middle), and reconstructed with an RVNN (right) with the $H-\alpha$ classification. Down: Confusion matrix of the original (rows) and reconstructed (columns) $H-\alpha$ classes with a CVNN (left), and with an RVNN (right).
 
 
 ## 🔗 Citation
