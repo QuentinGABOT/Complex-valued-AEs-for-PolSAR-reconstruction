@@ -4,7 +4,7 @@
 [![Framework: PyTorch](https://img.shields.io/badge/Framework-PyTorch-orange.svg)](https://pytorch.org/)
 [cite_start][![Paper](https://img.shields.io/badge/Paper-IET_Journal-blue)](#) Official repository for the paper: **"Exploring Polarimetric properties preservation for PolSAR image reconstruction with Complex-valued Convolutional Neural Networks"**[cite: 999].
 
-[cite_start]**Authors:** Quentin Gabot, Joana Frontera-Pons, Jérémy Fix, Chengfang Ren, Jean-Philippe Ovarlez[cite: 1000].
+**Authors:** Quentin Gabot, Joana Frontera-Pons, Jérémy Fix, Chengfang Ren, Jean-Philippe Ovarlez.
 
 ---
 
