@@ -1,8 +1,10 @@
 # Complex-Valued AutoEncoders for PolSAR Reconstruction
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Framework: PyTorch](https://img.shields.io/badge/Framework-PyTorch-orange.svg)](https://pytorch.org/)
-[cite_start][![Paper](https://img.shields.io/badge/Paper-IET_Journal-blue)](#) Official repository for the paper: **"Exploring Polarimetric properties preservation for PolSAR image reconstruction with Complex-valued Convolutional Neural Networks"**[cite: 999].
+[![Journal](https://img.shields.io/badge/Journal-IET-blue)](https://digital-library.theiet.org/journal/iet-rsn)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![Framework](https://img.shields.io/badge/Framework-PyTorch-orange)](https://pytorch.org/)
+
+Official implementation of the paper **"Exploring Polarimetric properties preservation for PolSAR image reconstruction with Complex-valued Convolutional Neural Networks"**, accepted at **IET Radar, Sonar & Navigation**.
 
 **Authors:** Quentin Gabot, Joana Frontera-Pons, Jérémy Fix, Chengfang Ren, Jean-Philippe Ovarlez.
 
@@ -10,33 +12,35 @@
 
 ## 📌 Abstract
 
-[cite_start]The inherently complex-valued nature of Polarimetric SAR (PolSAR) data necessitates specialized algorithms[cite: 1009]. [cite_start]However, deep learning studies often convert complex signals into the real domain before applying conventional real-valued models[cite: 1010]. 
+The inherently complex-valued nature of Polarimetric SAR (PolSAR) data necessitates specialized algorithms. However, deep learning studies often convert complex signals into the real domain before applying conventional real-valued models. 
 
-[cite_start]In this work, we investigate the performance of **Complex-valued Convolutional AutoEncoders (CV-CoAE)**[cite: 1011]. [cite_start]We demonstrate that these networks effectively compress and reconstruct fully polarimetric SAR data while preserving essential physical characteristics[cite: 1012]. We validate the preservation of these properties through various decompositions:
-* [cite_start]**Coherent Decompositions**: Pauli, Krogager, and Cameron[cite: 1012].
-* [cite_start]**Non-Coherent Decompositions**: $H-\alpha$ decomposition[cite: 1012].
+In this work, we investigate the performance of **Complex-valued Convolutional AutoEncoders (CV-CoAE)**. We demonstrate that these networks effectively compress and reconstruct fully polarimetric SAR data while preserving essential physical characteristics. We validate the preservation of these properties through various decompositions:
+* **Coherent Decompositions**: Pauli, Krogager, and Cameron.
+* **Non-Coherent Decompositions**: $H-\alpha$ decomposition.
 
-[cite_start]Our findings highlight the significant advantages of Complex-Valued Neural Networks (CVNNs) over their Real-Valued counterparts (RVNNs) in preserving high-level polarimetric semantics[cite: 1013, 1102].
+Our findings highlight the significant advantages of Complex-Valued Neural Networks (CVNNs) over their Real-Valued counterparts (RVNNs) in preserving high-level polarimetric semantics.
 
 ## 🏗️ Architecture
 
 The models implemented in this repository are Convolutional AutoEncoders (CoAE) extended to the complex domain. They include:
-* [cite_start]Complex-valued convolutions and linear layers[cite: 1208].
-* [cite_start]Complex-valued activation functions (e.g., CReLU, Cardioid)[cite: 1209, 1250, 1252].
-* [cite_start]Complex-valued down-sampling (strided convolutions) and up-sampling (Nearest Neighbor interpolation)[cite: 1412, 1420].
-* [cite_start]Complex-valued Batch Normalization[cite: 1213, 1286].
+* Complex-valued convolutions and linear layers.
+* Complex-valued activation functions (e.g., CReLU, Cardioid).
+* Complex-valued down-sampling (strided convolutions) and up-sampling (Nearest Neighbor interpolation).
+* Complex-valued Batch Normalization.
 
 ## 💾 Datasets
 
 This repository provides configurations to run experiments on two distinct fully polarimetric SAR datasets:
 
-1. [cite_start]**San Francisco ALOS-2:** * **Source:** ALOS-2 (L-Band)[cite: 1376].
-   * [cite_start]**Details:** Fully polarimetric (4 channels corresponding to the Sinclair matrix), $\approx$ 10m resolution[cite: 1376, 1378].
-   * [cite_start]**Size:** 44,478 non-overlapping $64 \times 64$ tiles[cite: 1379].
+1. **San Francisco ALOS-2:**
+   * **Source:** ALOS-2 (L-Band).
+   * **Details:** Fully polarimetric (4 channels corresponding to the Sinclair matrix), $\approx$ 10m resolution.
+   * **Size:** 44,478 non-overlapping $64 \times 64$ tiles.
    
-2. [cite_start]**Brétigny:** * **Source:** RAMSES sensor (X-Band)[cite: 1382, 1383].
-   * [cite_start]**Details:** Fully polarimetric, 1.32m $\times$ 1.38m resolution[cite: 1383].
-   * [cite_start]**Size:** 1,224 non-overlapping $64 \times 64$ tiles[cite: 1384].
+3. **Brétigny:**
+   * **Source:** RAMSES sensor (X-Band).
+   * **Details:** Fully polarimetric, 1.32m $\times$ 1.38m resolution.
+   * **Size:** 1,224 non-overlapping $64 \times 64$ tiles.
 
 ## 🛠️ Installation
 
